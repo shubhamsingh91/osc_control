@@ -7,7 +7,7 @@ Implements the control law:
         xddot_cmd = xddot_des + Kp @ (x_des - x) + Kd @ (xdot_des - xdot)
 
     Task-space force (with dynamics compensation):
-        Λ  = (J M⁻¹ Jᵀ)⁻¹                       task-space inertia
+        Λ  = (J M⁻¹ Jᵀ + λI)⁻¹                  damped task-space inertia
         μ  = Λ (J M⁻¹ h - Jdot qdot)             task-space bias
         F  = Λ xddot_cmd + μ                      commanded EE force
         τ_task = Jᵀ F
@@ -33,6 +33,7 @@ class OSC:
         Kp_null=10.0,
         Kd_null=4.0,
         q_rest=np.array([0.0, -0.785, 0.0, -2.356, 0.0, 1.571, 0.785]),
+        damping=1e-4,
     ):
         """
         Args:
@@ -41,12 +42,15 @@ class OSC:
             Kp_null: scalar null-space posture stiffness
             Kd_null: scalar null-space posture damping
             q_rest:  (7,) desired null-space posture (home config)
+            damping: scalar λ for damped inverse  Λ = (J M⁻¹ Jᵀ + λI)⁻¹
+                     prevents torque blowup near kinematic singularities
         """
         self.Kp = Kp
         self.Kd = Kd
         self.Kp_null = Kp_null
         self.Kd_null = Kd_null
         self.q_rest = q_rest
+        self.damping = damping
 
     def compute(self, x, xdot, x_des, xdot_des, xddot_des,
                 q, qdot, M, h, J, Jdot_qdot):
@@ -79,7 +83,9 @@ class OSC:
         # --- Task-space dynamics ---
         M_inv = np.linalg.inv(M)                          # (7, 7)
         Lam_inv = J @ M_inv @ J.T                         # (3, 3)
-        Lam = np.linalg.inv(Lam_inv)                      # task-space inertia
+        # Damped inverse: Λ = (J M⁻¹ Jᵀ + λI)⁻¹
+        # Regularizes near singularities where Lam_inv becomes rank-deficient
+        Lam = np.linalg.inv(Lam_inv + self.damping * np.eye(3))
 
         # Task-space bias: μ = Λ (J M⁻¹ h - Jdot qdot)
         mu = Lam @ (J @ M_inv @ h - Jdot_qdot)
