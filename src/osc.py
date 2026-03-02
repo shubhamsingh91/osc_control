@@ -105,7 +105,15 @@ class OSC:
         tau_null = N @ tau_null_raw                        # (7,)
 
         tau = tau_task + tau_null
-        return tau
+
+        debug = {
+            "F_cmd": F_cmd,           # (3,) task-space force [N]
+            "tau_task": tau_task,      # (7,) joint torques from task-space
+            "tau_null": tau_null,      # (7,) joint torques from null-space
+            "tau": tau,               # (7,) total joint torques
+            "e": e,                   # (3,) position error
+        }
+        return tau, debug
 
     def step(self, env, x_des, xdot_des, xddot_des):
         """
@@ -118,8 +126,9 @@ class OSC:
             xddot_des:  (3,) desired EE acceleration
 
         Returns:
-            x:   (3,) current EE position (after state read, before step)
-            err: float, position error norm
+            x:     (3,) current EE position (after state read, before step)
+            err:   float, position error norm
+            debug: dict with F_cmd, tau_task, tau_null, tau, e
         """
         q, qdot = env.get_joint_states()
         x, xdot = env.get_ee_state()
@@ -127,11 +136,11 @@ class OSC:
         J = env.get_jacobian(q)
         Jdot_qdot = env.get_jdot_qdot(q, qdot)
 
-        tau = self.compute(
+        tau, debug = self.compute(
             x, xdot, x_des, xdot_des, xddot_des,
             q, qdot, M, h, J, Jdot_qdot,
         )
         env.apply_torques(tau)
         env.step()
 
-        return x, np.linalg.norm(x_des - x)
+        return x, np.linalg.norm(x_des - x), debug

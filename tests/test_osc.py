@@ -26,7 +26,7 @@ def main():
     # Run for 3 seconds (3000 ticks at 1 kHz)
     errors = []
     for i in range(3000):
-        x, err = osc.step(env, x_des, xdot_des, xddot_des)
+        x, err, _ = osc.step(env, x_des, xdot_des, xddot_des)
         errors.append(err)
 
         if i % 500 == 0:

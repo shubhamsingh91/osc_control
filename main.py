@@ -68,7 +68,7 @@ def main():
                 x_des, xdot_des, xddot_des = traj.update(DT_TRAJ)
 
             # --- 1000 Hz: OSC + physics ---
-            _, err = osc.step(env, x_des, xdot_des, xddot_des)
+            _, err, debug = osc.step(env, x_des, xdot_des, xddot_des)
 
             # --- Periodic status print (every 2 seconds) ---
             tick += 1
@@ -76,10 +76,14 @@ def main():
                 elapsed = time.time() - t_start
                 sim_time = tick * DT_SIM
                 rtf = sim_time / elapsed  # real-time factor
+                F = debug["F_cmd"]
+                tau = debug["tau"]
+                tau_n = debug["tau_null"]
                 print(
-                    f"  t_sim={sim_time:6.1f}s  |  "
-                    f"err={err:.4f} m  |  "
-                    f"goal={np.round(prev_goal, 3)}  |  "
+                    f"  t={sim_time:5.1f}s | err={err:.4f}m | "
+                    f"F={np.round(F, 1)} N | "
+                    f"tau={np.round(tau, 1)} Nm | "
+                    f"tau_null={np.round(tau_n, 1)} Nm | "
                     f"RTF={rtf:.2f}x"
                 )
 
