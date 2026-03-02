@@ -2,7 +2,7 @@
 
 Operational Space Controller (OSC) for a 7-DOF Franka Panda arm in PyBullet.
 
-![demo](assets/demo.gif)
+<video src="https://github.com/shubhamsingh91/osc_control/raw/main/assets/demo.mp4" width="640" autoplay loop muted></video>
 
 ## Overview
 
