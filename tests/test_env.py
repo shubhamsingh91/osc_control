@@ -6,7 +6,7 @@ Usage:  uv run python test_env.py
 """
 
 import numpy as np
-from env import PandaEnv
+from src.env import PandaEnv
 
 
 def main():

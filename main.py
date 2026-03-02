@@ -1,5 +1,94 @@
+"""
+Multi-rate main loop for the OSC controller.
+
+Mirrors a real robot control stack with three rates:
+    - 20 Hz:   VLA / goal source (read sliders)
+    - 200 Hz:  Trajectory generator (smooth min-jerk refs)
+    - 1000 Hz: OSC torque computation + physics step
+
+Usage:
+    conda activate pybullet_env
+    python main.py
+"""
+
+import time
+
+import numpy as np
+
+from src.env import PandaEnv
+from src.osc import OSC
+from src.trajectory import MinJerkTrajectory
+from src.spoof_vla import SpoofVLA
+
+
+# ---------------------------------------------------------------------------
+# Rate configuration
+# ---------------------------------------------------------------------------
+DT_SIM = 1.0 / 1000.0     # 1 kHz — physics + OSC
+TICKS_PER_TRAJ = 5         # 200 Hz — trajectory update every 5 ticks
+TICKS_PER_VLA = 50         # 20 Hz  — goal read every 50 ticks
+DT_TRAJ = DT_SIM * TICKS_PER_TRAJ   # 5 ms
+
+
 def main():
-    print("Hello from osc-control!")
+    # --- Initialize all components ---
+    env = PandaEnv(dt=DT_SIM, gui=True)
+    osc = OSC()
+    traj = MinJerkTrajectory(duration=1.0)
+    vla = SpoofVLA(env.client)
+
+    # Initialize trajectory at the current EE position
+    x_init, _ = env.get_ee_state()
+    traj.initialize(x_init)
+
+    # Refs held between trajectory updates
+    x_des = x_init.copy()
+    xdot_des = np.zeros(3)
+    xddot_des = np.zeros(3)
+
+    prev_goal = x_init.copy()
+    tick = 0
+    t_start = time.time()
+
+    print("OSC controller running. Move the sliders in the PyBullet GUI.")
+    print("Close the GUI window to stop.\n")
+
+    try:
+        while True:
+            # --- 20 Hz: VLA layer (read goal sliders) ---
+            if tick % TICKS_PER_VLA == 0:
+                goal = vla.read_goal()
+                # Only re-plan if goal actually changed
+                if not np.allclose(goal, prev_goal, atol=1e-3):
+                    traj.set_new_goal(goal)
+                    prev_goal = goal.copy()
+
+            # --- 200 Hz: Trajectory generator ---
+            if tick % TICKS_PER_TRAJ == 0:
+                x_des, xdot_des, xddot_des = traj.update(DT_TRAJ)
+
+            # --- 1000 Hz: OSC + physics ---
+            _, err = osc.step(env, x_des, xdot_des, xddot_des)
+
+            # --- Periodic status print (every 2 seconds) ---
+            tick += 1
+            if tick % 2000 == 0:
+                elapsed = time.time() - t_start
+                sim_time = tick * DT_SIM
+                rtf = sim_time / elapsed  # real-time factor
+                print(
+                    f"  t_sim={sim_time:6.1f}s  |  "
+                    f"err={err:.4f} m  |  "
+                    f"goal={np.round(prev_goal, 3)}  |  "
+                    f"RTF={rtf:.2f}x"
+                )
+
+    except KeyboardInterrupt:
+        print("\nStopped by user.")
+    finally:
+        env.close()
+
+    print("Done.")
 
 
 if __name__ == "__main__":
