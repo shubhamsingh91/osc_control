@@ -18,7 +18,7 @@ import numpy as np
 from src.env import PandaEnv
 from src.osc import OSC
 from src.trajectory import MinJerkTrajectory
-from src.spoof_vla import SpoofVLA
+from src.smol_vla import SmolVLA
 
 
 # ---------------------------------------------------------------------------
@@ -35,7 +35,7 @@ def main():
     env = PandaEnv(dt=DT_SIM, gui=True)
     osc = OSC()
     traj = MinJerkTrajectory(duration=1.0)
-    vla = SpoofVLA(env.client)
+    vla = SmolVLA(env)
 
     # Initialize trajectory at the current EE position
     x_init, _ = env.get_ee_state()
@@ -50,7 +50,7 @@ def main():
     tick = 0
     t_start = time.time()
 
-    print("OSC controller running. Move the sliders in the PyBullet GUI.")
+    print("OSC controller running with SmolVLA policy.")
     print("Close the GUI window to stop.\n")
 
     try:

@@ -23,6 +23,11 @@ NUM_ALL_MOVABLE = 9  # 7 arm + 2 finger (pinocchio model has nq=9)
 EE_LINK_INDEX = 11
 # EE frame name in Pinocchio
 EE_FRAME_NAME = "panda_grasptarget"
+CAMERA_PRESETS = {
+    "front": dict(distance=1.10, yaw=45.0, pitch=-30.0, roll=0.0),
+    "side": dict(distance=1.05, yaw=110.0, pitch=-25.0, roll=0.0),
+    "top": dict(distance=1.20, yaw=0.0, pitch=-80.0, roll=0.0),
+}
 
 
 class PandaEnv:
@@ -128,6 +133,47 @@ class PandaEnv:
         pos = np.array(link_state[4])   # worldLinkFramePosition
         vel = np.array(link_state[6])   # worldLinkLinearVelocity
         return pos, vel
+
+    def get_camera_rgb(self, view="front", width=256, height=256):
+        """
+        Render a deterministic RGB image from a fixed camera viewpoint.
+
+        Args:
+            view: one of {"front", "side", "top"}
+            width: output image width in pixels
+            height: output image height in pixels
+
+        Returns:
+            rgb: (height, width, 3) uint8 image
+        """
+        if view not in CAMERA_PRESETS:
+            raise ValueError(f"Unknown camera view '{view}'.")
+
+        cfg = CAMERA_PRESETS[view]
+        view_matrix = p.computeViewMatrixFromYawPitchRoll(
+            cameraTargetPosition=[0.35, 0.0, 0.35],
+            distance=cfg["distance"],
+            yaw=cfg["yaw"],
+            pitch=cfg["pitch"],
+            roll=cfg["roll"],
+            upAxisIndex=2,
+        )
+        proj_matrix = p.computeProjectionMatrixFOV(
+            fov=60.0,
+            aspect=float(width) / float(height),
+            nearVal=0.01,
+            farVal=3.0,
+        )
+        _, _, rgba, _, _ = p.getCameraImage(
+            width=width,
+            height=height,
+            viewMatrix=view_matrix,
+            projectionMatrix=proj_matrix,
+            renderer=p.ER_TINY_RENDERER,
+            physicsClientId=self.client,
+        )
+        rgba = np.asarray(rgba, dtype=np.uint8).reshape(height, width, 4)
+        return rgba[:, :, :3]
 
     # ------------------------------------------------------------------
     # Dynamics & Kinematics  (via Pinocchio)
