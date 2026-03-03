@@ -2,15 +2,17 @@
 Multi-rate main loop for the OSC controller.
 
 Mirrors a real robot control stack with three rates:
-    - 20 Hz:   VLA / goal source (read sliders)
+    - 5 Hz:    VLA / goal source
     - 200 Hz:  Trajectory generator (smooth min-jerk refs)
     - 1000 Hz: OSC torque computation + physics step
 
 Usage:
-    conda activate pybullet_env
-    python main.py
+    source ~/.venvs/osc/bin/activate
+    python main.py            # SmolVLA policy
+    python main.py --spoof    # GUI slider control
 """
 
+import argparse
 import time
 
 import numpy as np
@@ -18,7 +20,6 @@ import numpy as np
 from src.env import PandaEnv
 from src.osc import OSC
 from src.trajectory import MinJerkTrajectory
-from src.smol_vla import SmolVLA
 
 
 # ---------------------------------------------------------------------------
@@ -26,16 +27,27 @@ from src.smol_vla import SmolVLA
 # ---------------------------------------------------------------------------
 DT_SIM = 1.0 / 1000.0     # 1 kHz — physics + OSC
 TICKS_PER_TRAJ = 5         # 200 Hz — trajectory update every 5 ticks
-TICKS_PER_VLA = 50         # 20 Hz  — goal read every 50 ticks
+TICKS_PER_VLA = 200        # 5 Hz   — goal read every 200 ticks
 DT_TRAJ = DT_SIM * TICKS_PER_TRAJ   # 5 ms
 
 
 def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--spoof", action="store_true",
+                        help="Use GUI sliders instead of SmolVLA")
+    args = parser.parse_args()
+
     # --- Initialize all components ---
     env = PandaEnv(dt=DT_SIM, gui=True)
     osc = OSC()
     traj = MinJerkTrajectory(duration=1.0)
-    vla = SmolVLA(env)
+
+    if args.spoof:
+        from src.spoof_vla import SpoofVLA
+        vla = SpoofVLA(env.client)
+    else:
+        from src.smol_vla import SmolVLA
+        vla = SmolVLA(env)
 
     # Initialize trajectory at the current EE position
     x_init, _ = env.get_ee_state()
@@ -50,7 +62,8 @@ def main():
     tick = 0
     t_start = time.time()
 
-    print("OSC controller running with SmolVLA policy.")
+    mode = "GUI sliders (spoof)" if args.spoof else "SmolVLA policy"
+    print(f"OSC controller running with {mode}.")
     print("Close the GUI window to stop.\n")
 
     try:
